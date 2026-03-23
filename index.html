@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Jos Bus Tracker</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f0fdf4;
+      color: #1a1a1a
+    }
+
+    header {
+      background: #1a8a5a;
+      color: #fff;
+      padding: 12px 16px;
+      text-align: center;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, .15)
+    }
+
+    header h1 {
+      font-size: 1.2rem
+    }
+
+    header p {
+      font-size: .75rem;
+      opacity: .8
+    }
+
+    #map {
+      width: 100%;
+      height: 60vh;
+      min-height: 300px
+    }
+
+    .stops {
+      padding: 16px;
+      border-top: 1px solid #ddd;
+      background: #fff
+    }
+
+    .stops h2 {
+      font-size: .9rem;
+      margin-bottom: 8px;
+      font-weight: 600
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px
+    }
+
+    .stop {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: #f0fdf4;
+      border-radius: 8px;
+      padding: 8px 12px
+    }
+
+    .num {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: #1a8a5a;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: .75rem;
+      font-weight: 700;
+      flex-shrink: 0
+    }
+
+    .stop span:last-child {
+      font-size: .8rem
+    }
+
+    .loader {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(255, 255, 255, .85);
+      z-index: 50
+    }
+
+    .spinner {
+      width: 32px;
+      height: 32px;
+      border: 4px solid #1a8a5a;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin .8s linear infinite
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg)
+      }
+    }
+
+    @media(max-width:480px) {
+      .grid {
+        grid-template-columns: 1fr
+      }
+
+      #map {
+        height: 55vh
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <h1>🚌 Jos Bus Tracker</h1>
+    <p>Plateau State, Nigeria</p>
+  </header>
+  <div id="map"></div>
+  <div class="stops">
+    <h2>Route Stops</h2>
+    <div class="grid" id="stopList"></div>
+  </div>
+  <div class="loader" id="loader">
+    <div style="text-align:center">
+      <div class="spinner"></div>
+      <p style="margin-top:8px;font-size:.85rem;color:#666">Loading map…</p>
+    </div>
+  </div>
+
+  <script>
+    var STOPS = [
+      { name: "Terminus Market", lat: 9.8965, lng: 8.8583 },
+      { name: "British America Junction", lat: 9.8888, lng: 8.8685 },
+      { name: "Lamingo Junction", lat: 9.8780, lng: 8.8820 },
+      { name: "JUTH Permanent Site", lat: 9.8650, lng: 8.8950 }
+    ];
+
+    // Render stop list
+    var list = document.getElementById("stopList");
+    STOPS.forEach(function (s, i) {
+      list.innerHTML += '<div class="stop"><span class="num">' + (i + 1) + '</span><span>' + s.name + '</span></div>';
+    });
+
+    function initMap() {
+      document.getElementById("loader").style.display = "none";
+      var map = new google.maps.Map(document.getElementById("map"), {
+        center: { lat: 9.88, lng: 8.875 }, zoom: 13, mapTypeControl: false, streetViewControl: false
+      });
+
+      STOPS.forEach(function (s, i) {
+        var m = new google.maps.Marker({
+          position: { lat: s.lat, lng: s.lng }, map: map, title: s.name,
+          label: { text: "" + (i + 1), color: "white", fontWeight: "bold" },
+          icon: { path: google.maps.SymbolPath.CIRCLE, scale: 14, fillColor: "#1a8a5a", fillOpacity: 1, strokeColor: "#fff", strokeWeight: 2 }
+        });
+        var info = new google.maps.InfoWindow({ content: "<strong>" + s.name + "</strong>" });
+        m.addListener("click", function () { info.open(map, m) });
+      });
+
+      new google.maps.Polyline({
+        path: STOPS.map(function (s) { return { lat: s.lat, lng: s.lng } }),
+        geodesic: true, strokeColor: "#1a8a5a", strokeOpacity: .8, strokeWeight: 4, map: map
+      });
+
+      var bus = new google.maps.Marker({
+        position: { lat: STOPS[0].lat, lng: STOPS[0].lng }, map: map,
+        title: "Bus", label: { text: "🚌", fontSize: "22px" }, zIndex: 999
+      });
+
+      var segs = STOPS.length - 1, sps = 20, total = segs * sps, step = 0;
+      setInterval(function () {
+        step = (step + 1) % (total * 2);
+        var eff = step >= total ? total * 2 - step : step;
+        var seg = Math.min(Math.floor(eff / sps), segs - 1);
+        var p = (eff % sps) / sps;
+        var f = STOPS[seg], t = STOPS[seg + 1] || f;
+        bus.setPosition({ lat: f.lat + (t.lat - f.lat) * p, lng: f.lng + (t.lng - f.lng) * p });
+      }, 800);
+    }
+  </script>
+  <script async defer
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCcw9GsUv-U9oEsED2_kpuISt6S1kHd0E8&callback=initMap"></script>
+</body>
+
+</html>
